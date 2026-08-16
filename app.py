@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.express as px
+import os
+from datetime import datetime
 
 # Configuração da página
 st.set_page_config(
@@ -11,40 +13,89 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicializando histórico de gastos
-if "historico_gastos" not in st.session_state:
-    st.session_state.historico_gastos = pd.DataFrame(
-        columns=["Data", "Estabelecimento", "Categoria", "Detalhe/Sub", "Valor (R$)", "Fixo"]
-    )
+# --- FUNÇÕES DE PERSISTÊNCIA (SALVAR/CARREGAR DOS ARQUIVOS CSV) ---
+ARQ_GASTOS = "historico_gastos.csv"
+ARQ_CARTOES = "historico_cartoes.csv"
+ARQ_LISTA_CARTOES = "lista_cartoes.csv"
+ARQ_INVEST = "portfolio_investimentos.csv"
+ARQ_RENDA = "renda.csv"
 
-# Inicializando histórico de cartões
-if "historico_cartoes" not in st.session_state:
-    st.session_state.historico_cartoes = pd.DataFrame(
-        columns=["Cartão", "Descrição", "Valor Total (R$)", "Parcelas", "Classe/Categoria"]
-    )
+def carregar_dados():
+    # Gastos
+    if os.path.exists(ARQ_GASTOS):
+        st.session_state.historico_gastos = pd.read_csv(ARQ_GASTOS)
+    else:
+        st.session_state.historico_gastos = pd.DataFrame(
+            columns=["Data", "Estabelecimento", "Categoria", "Detalhe/Sub", "Valor (R$)", "Fixo", "MesAno"]
+        )
 
-if "lista_cartoes_cadastrados" not in st.session_state:
-    st.session_state.lista_cartoes_cadastrados = {}
+    # Histórico de Cartões (Parcelamentos)
+    if os.path.exists(ARQ_CARTOES):
+        st.session_state.historico_cartoes = pd.read_csv(ARQ_CARTOES)
+    else:
+        st.session_state.historico_cartoes = pd.DataFrame(
+            columns=["Cartão", "Descrição", "Valor Total (R$)", "Parcelas", "Classe/Categoria"]
+        )
 
-# Inicializando portfólio de investimentos
-if "portfolio_investimentos" not in st.session_state:
-    st.session_state.portfolio_investimentos = pd.DataFrame(
-        columns=["Ativo", "Quantidade", "Preço Médio Compra"]
-    )
+    # Lista de Cartões Cadastrados e Limites
+    if os.path.exists(ARQ_LISTA_CARTOES):
+        df_lc = pd.read_csv(ARQ_LISTA_CARTOES)
+        st.session_state.lista_cartoes_cadastrados = dict(zip(df_lc["Cartão"], df_lc["Limite"]))
+    else:
+        st.session_state.lista_cartoes_cadastrados = {}
 
-# Inicializando o ganho/entrada mensal total editável (Padrão inicial: R$ 8.500,00)
-if "renda_mensal" not in st.session_state:
-    st.session_state.renda_mensal = 8500.00
+    # Investimentos
+    if os.path.exists(ARQ_INVEST):
+        st.session_state.portfolio_investimentos = pd.read_csv(ARQ_INVEST)
+    else:
+        st.session_state.portfolio_investimentos = pd.DataFrame(
+            columns=["Ativo", "Quantidade", "Preço Médio Compra"]
+        )
 
-# Metas mensais dinâmicas baseadas na renda atual (Proporções padrão)
+    # Renda Mensal
+    if os.path.exists(ARQ_RENDA):
+        with open(ARQ_RENDA, "r") as f:
+            try:
+                st.session_state.renda_mensal = float(f.read())
+            except:
+                st.session_state.renda_mensal = 8500.0
+    else:
+        st.session_state.renda_mensal = 8500.0
+
+def salvar_gastos():
+    st.session_state.historico_gastos.to_csv(ARQ_GASTOS, index=False)
+
+def salvar_cartoes():
+    st.session_state.historico_cartoes.to_csv(ARQ_CARTOES, index=False)
+
+def salvar_lista_cartoes():
+    df_lc = pd.DataFrame(list(st.session_state.lista_cartoes_cadastrados.items()), columns=["Cartão", "Limite"])
+    df_lc.to_csv(ARQ_LISTA_CARTOES, index=False)
+
+def salvar_investimentos():
+    st.session_state.portfolio_investimentos.to_csv(ARQ_INVEST, index=False)
+
+def salvar_renda():
+    with open(ARQ_RENDA, "w") as f:
+        f.write(str(st.session_state.renda_mensal))
+
+# Inicializar dados salvos na sessão
+if "dados_carregados" not in st.session_state:
+    carregar_dados()
+    st.session_state.dados_carregados = True
+
+# Orientação baseada na data atual real (Agosto de 2026)
+mes_atual_real = "Agosto/2026"
+meses_disponiveis = ["Agosto/2026", "Julho/2026", "Junho/2026", "Maio/2026", "Março/2026", "Fevereiro/2026", "Janeiro/2026"]
+
+# Metas mensais dinâmicas baseadas na renda atual
 GANHO_TOTAL = st.session_state.renda_mensal
 METAS = {
-    "Casa": GANHO_TOTAL * 0.30,          # 30%
-    "Transporte": GANHO_TOTAL * 0.10,    # 10%
-    "Investimentos": GANHO_TOTAL * 0.20, # 20%
-    "Viagem": GANHO_TOTAL * 0.10,        # 10%
-    "Lazer": GANHO_TOTAL * 0.10          # 10%
-    # (Os 20% restantes formam a folga/saldo livre do mês)
+    "Casa": GANHO_TOTAL * 0.30,
+    "Transporte": GANHO_TOTAL * 0.10,
+    "Investimentos": GANHO_TOTAL * 0.20,
+    "Viagem": GANHO_TOTAL * 0.10,
+    "Lazer": GANHO_TOTAL * 0.10
 }
 
 # Estilo visual customizado e responsivo
@@ -84,18 +135,20 @@ with st.sidebar:
     st.image("https://img.icons8.com/color/96/stack-of-coins.png", width=60)
     st.title("Smart Finance")
     st.markdown("---")
-    mes_selecionado = st.selectbox("Mês de Referência", ["Março/2026", "Fevereiro/2026", "Janeiro/2026"])
+    
+    # Seletor de Mês (Orientação Temporal)
+    mes_selecionado = st.selectbox("Mês de Referência", meses_disponiveis, index=0)
     st.markdown("---")
     
-    # Campo para edição rápida da renda na barra lateral
     st.subheader("💵 Configurar Renda")
     nova_renda_sidebar = st.number_input("Entrada Mensal Total (R$):", min_value=0.0, value=st.session_state.renda_mensal, step=100.0)
     if nova_renda_sidebar != st.session_state.renda_mensal:
         st.session_state.renda_mensal = nova_renda_sidebar
+        salvar_renda()
         st.rerun()
 
     st.markdown("---")
-    st.info("💡 *Dica:* Altere sua renda acima ou na aba de Visão Geral para recalcular todas as metas automaticamente.")
+    st.info("💡 *Dados persistentes:* As informações são salvas automaticamente no app.")
 
 # Abas do Dashboard
 tab1, tab2, tab3, tab4 = st.tabs(["🏠 Visão Geral", "💸 Gastos", "💳 Cartões", "📈 Investimentos"])
@@ -103,7 +156,6 @@ tab1, tab2, tab3, tab4 = st.tabs(["🏠 Visão Geral", "💸 Gastos", "💳 Cart
 with tab1:
     st.subheader(f"📊 Resumo Financeiro Completo - {mes_selecionado}")
     
-    # Bloco para edição interativa da renda direto na Visão Geral
     with st.expander("⚙️ Editar Renda / Ganhos do Mês", expanded=False):
         col_ed_r1, col_ed_r2 = st.columns([2, 1])
         with col_ed_r1:
@@ -113,22 +165,32 @@ with tab1:
             st.text("")
             if st.button("Atualizar Renda 💰"):
                 st.session_state.renda_mensal = renda_input_main
+                salvar_renda()
                 st.success("Renda atualizada com sucesso!")
                 st.rerun()
 
-    # Consolidação de Gastos avulsos e Faturas de Cartão
-    gastos_brutos = {}
-    if not st.session_state.historico_gastos.empty:
-        gastos_brutos = st.session_state.historico_gastos.groupby("Categoria")["Valor (R$)"].sum().to_dict()
+    # Filtrar gastos do mês selecionado (se houver coluna MesAno)
+    df_gastos_valido = st.session_state.historico_gastos.copy()
+    if not df_gastos_valido.empty:
+        if "MesAno" not in df_gastos_valido.columns:
+            df_gastos_valido["MesAno"] = mes_selecionado # Compatibilidade com dados antigos
+        
+        # Filtra pelo mês selecionado na barra lateral
+        df_gastos_mes = df_gastos_valido[df_gastos_valido["MesAno"] == mes_selecionado]
+        gastos_brutos = df_gastos_mes.groupby("Categoria")["Valor (R$)"].sum().to_dict()
+        gastos_avulsos_mes = df_gastos_mes["Valor (R$)"].sum()
+    else:
+        gastos_brutos = {}
+        gastos_avulsos_mes = 0.0
 
+    # Adicionar faturas de cartão ao mês
+    total_cartoes_mes = 0.0
     if not st.session_state.historico_cartoes.empty:
         for _, row_c in st.session_state.historico_cartoes.iterrows():
             cat_c = row_c["Classe/Categoria"]
             val_parcela = row_c["Valor Total (R$)"] / row_c["Parcelas"]
+            total_cartoes_mes += val_parcela
             gastos_brutos[cat_c] = gastos_brutos.get(cat_c, 0.0) + val_parcela
-
-    gastos_avulsos_mes = st.session_state.historico_gastos["Valor (R$)"].sum() if not st.session_state.historico_gastos.empty else 0.0
-    total_cartoes_mes = sum([row_c["Valor Total (R$)"] / row_c["Parcelas"] for _, row_c in st.session_state.historico_cartoes.iterrows()]) if not st.session_state.historico_cartoes.empty else 0.0
 
     total_saidas_mes = gastos_avulsos_mes + total_cartoes_mes
     saldo_mes = st.session_state.renda_mensal - total_saidas_mes
@@ -143,7 +205,7 @@ with tab1:
 
     # Métricas Principais
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Entradas (Ganhos)", f"R$ {st.session_state.renda_mensal:,.2f}", "Renda configurada")
+    col1.metric("Entradas (Ganhos)", f"R$ {st.session_state.renda_mensal:,.2f}", f"Ref: {mes_selecionado}")
     col2.metric("Saídas Totais", f"R$ {total_saidas_mes:,.2f}", "Gastos + Faturas")
     col3.metric("Saldo do Mês", f"R$ {saldo_mes:,.2f}", "Saudável 🟢" if saldo_mes >= 0 else "Atenção 🔴")
     col4.metric("Crédito Disponível", f"R$ {limite_disponivel_geral:,.2f}", f"Tot: R$ {limite_total_geral:,.2f}")
@@ -151,7 +213,7 @@ with tab1:
     st.markdown("---")
     
     # Seção Gráfica e Visual (Raio-X)
-    st.subheader("📊 Raio-X Visual do Orçamento")
+    st.subheader(f"📊 Raio-X Visual do Orçamento ({mes_selecionado})")
     graf_col1, graf_col2 = st.columns(2)
     
     dados_grafico = []
@@ -221,11 +283,11 @@ with tab1:
     
     dicas_ia = []
     if saldo_mes < 0:
-        dicas_ia.append(("🔴 Alerta Vermelho", f"Suas saídas ultrapassaram suas entradas em R$ {abs(saldo_mes):,.2f}. O uso excessivo do cartão está comprometendo seu mês."))
+        dicas_ia.append(("🔴 Alerta Vermelho", f"Suas saídas ultrapassaram suas entradas em R$ {abs(saldo_mes):,.2f} em {mes_selecionado}."))
     elif saldo_mes < (st.session_state.renda_mensal * 0.15):
         dicas_ia.append(("⚠️ Alerta de Margem Baixa", "Seu saldo livre está apertado em relação à sua renda total."))
     else:
-        dicas_ia.append(("🟢 Comportamento Saudável", "Excelente controle! Seu fluxo de caixa está positivo."))
+        dicas_ia.append(("🟢 Comportamento Saudável", f"Excelente controle em {mes_selecionado}! Seu fluxo de caixa está positivo."))
 
     for cat, meta in METAS.items():
         gasto_cat = gastos_brutos.get(cat, 0.0)
@@ -242,7 +304,7 @@ with tab1:
             st.info(f"**{titulo}:** {mensagem}")
 
 with tab2:
-    st.subheader("💸 Lançamento de Gastos & Metas por Categoria")
+    st.subheader(f"💸 Lançamento de Gastos & Metas ({mes_selecionado})")
     
     with st.form(key="form_gasto", clear_on_submit=True):
         col_n1, col_n2 = st.columns(2)
@@ -267,32 +329,43 @@ with tab2:
             submitted = st.form_submit_button("Confirmar e Registrar Gasto 🚀", type="primary")
             if submitted:
                 novo_dado = {
-                    "Data": pd.Timestamp.today().strftime("%d/%m/%Y"),
+                    "Data": datetime.today().strftime("%d/%m/%Y"),
                     "Estabelecimento": detalhe_gasto if detalhe_gasto.strip() else "Gasto Diversos",
                     "Categoria": categoria_gasto,
                     "Detalhe/Sub": sub_viagem if categoria_gasto == "Viagem" else "-",
                     "Valor (R$)": valor_gasto,
-                    "Fixo": False
+                    "Fixo": False,
+                    "MesAno": mes_selecionado # Associa o gasto ao mês que está selecionado na barra lateral
                 }
                 st.session_state.historico_gastos = pd.concat(
                     [st.session_state.historico_gastos, pd.DataFrame([novo_dado])], 
                     ignore_index=True
                 )
-                st.success("Gasto registrado com sucesso!")
+                salvar_gastos()
+                st.success(f"Gasto registrado em {mes_selecionado} com sucesso!")
                 st.rerun()
 
     st.markdown("---")
     
+    # Filtrar gastos do mês selecionado para o acompanhamento
+    df_g_acompanhamento = st.session_state.historico_gastos.copy()
+    if not df_g_acompanhamento.empty:
+        if "MesAno" not in df_g_acompanhamento.columns:
+            df_g_acompanhamento["MesAno"] = mes_selecionado
+        gastos_brutos_comp = df_g_acompanhamento[df_g_acompanhamento["MesAno"] == mes_selecionado].groupby("Categoria")["Valor (R$)"].sum().to_dict()
+    else:
+        gastos_brutos_comp = {}
+
     excedente_outras_g = 0.0
     for cat, meta in METAS.items():
         if cat != "Viagem":
-            gasto_cat = gastos_brutos.get(cat, 0.0)
+            gasto_cat = gastos_brutos_comp.get(cat, 0.0)
             if gasto_cat > meta:
                 excedente_outras_g += (gasto_cat - meta)
 
-    st.subheader("📊 Acompanhamento de Metas vs. Gastos Reais (Detalhado)")
+    st.subheader(f"📊 Acompanhamento de Metas vs. Gastos ({mes_selecionado})")
     for cat, meta in METAS.items():
-        gasto_atual = gastos_brutos.get(cat, 0.0)
+        gasto_atual = gastos_brutos_comp.get(cat, 0.0)
         
         if cat == "Viagem":
             gasto_total_viagem = gasto_atual + excedente_outras_g
@@ -327,40 +400,53 @@ with tab2:
 
     st.markdown("---")
     
-    st.subheader("📜 Gerenciamento de Lançamentos Recentes")
+    st.subheader(f"📜 Lançamentos em {mes_selecionado}")
     if not st.session_state.historico_gastos.empty:
-        for idx, row in st.session_state.historico_gastos.iterrows():
-            c1, c2, c3, c4, c5, c6, c7 = st.columns([1.1, 2.3, 1.6, 2.0, 1.1, 1.2, 0.6])
+        if "MesAno" not in st.session_state.historico_gastos.columns:
+            st.session_state.historico_gastos["MesAno"] = mes_selecionado
             
-            is_fixo = row.get("Fixo", False)
+        df_filtrado_idx = st.session_state.historico_gastos[st.session_state.historico_gastos["MesAno"] == mes_selecionado].index
+        
+        if len(df_filtrado_idx) > 0:
+            for idx in df_filtrado_idx:
+                row = st.session_state.historico_gastos.loc[idx]
+                c1, c2, c3, c4, c5, c6, c7 = st.columns([1.1, 2.3, 1.6, 2.0, 1.1, 1.2, 0.6])
+                
+                is_fixo = bool(row.get("Fixo", False))
 
-            with c1:
-                st.text(row["Data"])
-            with c2:
-                prefixo_fixo = "📌 " if is_fixo else ""
-                st.text(prefixo_fixo + row["Estabelecimento"])
-            with c3:
-                st.text(f"R$ {row['Valor (R$)']:.2f}")
-            with c4:
-                opcoes_cat = ["Casa", "Transporte", "Lazer", "Viagem", "Investimentos", "Outros"]
-                cat_atual_idx = opcoes_cat.index(row["Categoria"]) if row["Categoria"] in opcoes_cat else 0
-                nova_categoria = st.selectbox("Categoria", opcoes_cat, index=cat_atual_idx, key=f"cat_{idx}", label_visibility="collapsed")
-                if nova_categoria != row["Categoria"]:
-                    st.session_state.historico_gastos.at[idx, "Categoria"] = nova_categoria
-                    st.rerun()
-            with c5:
-                st.text(row["Detalhe/Sub"])
-            with c6:
-                novo_estado_fixo = st.checkbox("Fixar 📌", value=is_fixo, key=f"fix_{idx}")
-                if novo_estado_fixo != is_fixo:
-                    st.session_state.historico_gastos.at[idx, "Fixo"] = novo_estado_fixo
-                    st.rerun()
-            with c7:
-                if st.button("🗑️", key=f"del_{idx}", help="Apagar este gasto"):
-                    st.session_state.historico_gastos = st.session_state.historico_gastos.drop(idx).reset_index(drop=True)
-                    st.rerun()
+                with c1:
+                    st.text(str(row["Data"]))
+                with c2:
+                    prefixo_fixo = "📌 " if is_fixo else ""
+                    st.text(prefixo_fixo + str(row["Estabelecimento"]))
+                with c3:
+                    st.text(f"R$ {float(row['Valor (R$)']):.2f}")
+                with c4:
+                    opcoes_cat = ["Casa", "Transporte", "Lazer", "Viagem", "Investimentos", "Outros"]
+                    cat_atual = str(row["Categoria"])
+                    cat_atual_idx = opcoes_cat.index(cat_atual) if cat_atual in opcoes_cat else 0
+                    nova_categoria = st.selectbox("Categoria", opcoes_cat, index=cat_atual_idx, key=f"cat_{idx}", label_visibility="collapsed")
+                    if nova_categoria != cat_atual:
+                        st.session_state.historico_gastos.at[idx, "Categoria"] = nova_categoria
+                        salvar_gastos()
+                        st.rerun()
+                with c5:
+                    st.text(str(row["Detalhe/Sub"]))
+                with c6:
+                    novo_estado_fixo = st.checkbox("Fixar 📌", value=is_fixo, key=f"fix_{idx}")
+                    if novo_estado_fixo != is_fixo:
+                        st.session_state.historico_gastos.at[idx, "Fixo"] = novo_estado_fixo
+                        salvar_gastos()
+                        st.rerun()
+                with c7:
+                    if st.button("🗑️", key=f"del_{idx}", help="Apagar este gasto"):
+                        st.session_state.historico_gastos = st.session_state.historico_gastos.drop(idx).reset_index(drop=True)
+                        salvar_gastos()
+                        st.rerun()
+        else:
+            st.info(f"Nenhum gasto registrado em {mes_selecionado}.")
     else:
-        st.info("Nenhum gasto registrado ainda. Use o formulário acima para adicionar.")
+        st.info("Nenhum gasto registrado ainda.")
 
 with tab3:
     st.subheader("💳 Gestão de Múltiplos Cartões & Limites de Crédito")
@@ -368,15 +454,16 @@ with tab3:
     with st.expander("⚙️ Gerenciar / Cadastrar Cartões (Definir Limites Individuais)", expanded=True):
         col_cad1, col_cad2, col_cad3 = st.columns([2, 2, 1])
         with col_cad1:
-            novo_nome_cartao = st.text_input("Nome do Cartão (ex: Nubank, Itaú):", value="")
+            novo_nome_cartao = st.text_input("Nome do Cartão (ex: Nubank, Itaú):", value="", key="input_nome_cartao")
         with col_cad2:
-            novo_limite_cartao = st.number_input("Limite Individual (R$):", min_value=0.0, value=1000.00, step=500.0)
+            novo_limite_cartao = st.number_input("Limite Individual (R$):", min_value=0.0, value=1000.00, step=500.0, key="input_limite_cartao")
         with col_cad3:
             st.text("")
             st.text("")
-            if st.button("Adicionar Cartão 💳"):
+            if st.button("Adicionar Cartão 💳", key="btn_add_cartao_config"):
                 if novo_nome_cartao.strip():
                     st.session_state.lista_cartoes_cadastrados[novo_nome_cartao.strip()] = novo_limite_cartao
+                    salvar_lista_cartoes()
                     st.success(f"Cartão {novo_nome_cartao} adicionado com sucesso!")
                     st.rerun()
 
@@ -389,9 +476,10 @@ with tab3:
 
     if not st.session_state.historico_cartoes.empty:
         for _, row_c in st.session_state.historico_cartoes.iterrows():
-            c_nome = row_c["Cartão"]
-            v_tot = row_c["Valor Total (R$)"]
-            v_parc = v_tot / row_c["Parcelas"]
+            c_nome = str(row_c["Cartão"])
+            v_tot = float(row_c["Valor Total (R$)"])
+            parcelas_val = int(row_c["Parcelas"]) if row_c["Parcelas"] > 0 else 1
+            v_parc = v_tot / parcelas_val
             
             total_fatura_mensal_global += v_parc
             total_comprometido_global += v_tot
@@ -459,6 +547,7 @@ with tab3:
                     [st.session_state.historico_cartoes, pd.DataFrame([novo_cartao])], 
                     ignore_index=True
                 )
+                salvar_cartoes()
                 st.success("Compra parcelada cadastrada com sucesso!")
                 st.rerun()
     else:
@@ -469,25 +558,28 @@ with tab3:
     st.subheader("📜 Histórico de Parcelamentos Registrados")
     if not st.session_state.historico_cartoes.empty:
         for idx_c, row_c in st.session_state.historico_cartoes.iterrows():
-            valor_parcela_calc = row_c["Valor Total (R$)"] / row_c["Parcelas"]
+            v_tot_r = float(row_c["Valor Total (R$)"])
+            v_parc_val = int(row_c["Parcelas"]) if row_c["Parcelas"] > 0 else 1
+            valor_parcela_calc = v_tot_r / v_parc_val
             
             cc1, cc2, cc3, cc4, cc5, cc6, cc7 = st.columns([1.8, 2.2, 1.8, 1.2, 1.4, 1.8, 0.8])
             
             with cc1:
-                st.text(row_c["Cartão"])
+                st.text(str(row_c["Cartão"]))
             with cc2:
-                st.text(row_c["Descrição"])
+                st.text(str(row_c["Descrição"]))
             with cc3:
-                st.text(f"Tot: R$ {row_c['Valor Total (R$)']:.2f}")
+                st.text(f"Tot: R$ {v_tot_r:.2f}")
             with cc4:
                 st.text(f"{row_c['Parcelas']}x")
             with cc5:
                 st.text(f"R$ {valor_parcela_calc:.2f}/mês")
             with cc6:
-                st.text(row_c["Classe/Categoria"])
+                st.text(str(row_c["Classe/Categoria"]))
             with cc7:
                 if st.button("🗑️", key=f"del_cartao_{idx_c}", help="Apagar este parcelamento"):
                     st.session_state.historico_cartoes = st.session_state.historico_cartoes.drop(idx_c).reset_index(drop=True)
+                    salvar_cartoes()
                     st.rerun()
     else:
         st.info("Nenhum parcelamento de cartão registrado.")
@@ -499,11 +591,11 @@ with tab4:
     with st.form(key="form_ativo", clear_on_submit=True):
         col_inv_a, col_inv_b, col_inv_c, col_inv_d = st.columns([2, 1.5, 1.5, 1])
         with col_inv_a:
-            ticker_input = st.text_input("Ticker do Ativo (ex: PETR4.SA):", value="")
+            ticker_input = st.text_input("Ticker do Ativo (ex: PETR4.SA):", value="", key="ticker_input_field")
         with col_inv_b:
-            qtd_input = st.number_input("Quantidade:", min_value=1, value=10, step=1)
+            qtd_input = st.number_input("Quantidade:", min_value=1, value=10, step=1, key="qtd_input_field")
         with col_inv_c:
-            preco_medio_input = st.number_input("Preço Médio de Compra (R$):", min_value=0.0, value=30.00, step=1.0)
+            preco_medio_input = st.number_input("Preço Médio de Compra (R$):", min_value=0.0, value=30.00, step=1.0, key="preco_input_field")
         with col_inv_d:
             st.text("")
             st.text("")
@@ -520,6 +612,7 @@ with tab4:
                     [st.session_state.portfolio_investimentos, novo_ativo_df],
                     ignore_index=True
                 )
+                salvar_investimentos()
                 st.success("Ativo adicionado com sucesso!")
                 st.rerun()
 
@@ -531,11 +624,11 @@ with tab4:
         
         for ticker in df_portfolio["Ativo"]:
             try:
-                stock = yf.Ticker(ticker)
+                stock = yf.Ticker(str(ticker))
                 hist = stock.history(period="1d")
-                preco = hist['Close'].iloc[-1] if not hist.empty else df_portfolio.loc[df_portfolio["Ativo"] == ticker, "Preço Médio Compra"].values[0]
+                preco = float(hist['Close'].iloc[-1]) if not hist.empty else float(df_portfolio.loc[df_portfolio["Ativo"] == ticker, "Preço Médio Compra"].values[0])
             except:
-                preco = df_portfolio.loc[df_portfolio["Ativo"] == ticker, "Preço Médio Compra"].values[0]
+                preco = float(df_portfolio.loc[df_portfolio["Ativo"] == ticker, "Preço Médio Compra"].values[0])
             precos_atuais.append(preco)
 
         df_portfolio["Preço Atual"] = precos_atuais
@@ -562,6 +655,7 @@ with tab4:
         
         if st.button("🗑️ Limpar Todos os Investimentos"):
             st.session_state.portfolio_investimentos = pd.DataFrame(columns=["Ativo", "Quantidade", "Preço Médio Compra"])
+            salvar_investimentos()
             st.rerun()
     else:
         st.info("Nenhum ativo cadastrado na carteira. Utilize o formulário acima para inserir suas ações ou ETFs.")
