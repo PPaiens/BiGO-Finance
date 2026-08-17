@@ -187,7 +187,10 @@ with st.sidebar:
     st.rerun()
 
   st.markdown("---")
-  st.info("💡 *Dados persistentes salvos automaticamente.*")
+  st.info(
+      "💡 *Dados persistentes:* As informações são salvas automaticamente no"
+      " app."
+  )
 
 # Abas do Dashboard
 tab1, tab2, tab3, tab4 = st.tabs(
@@ -273,6 +276,7 @@ with tab1:
   )
 
   st.markdown("---")
+
   st.subheader(f"📊 Raio-X Visual do Orçamento ({mes_selecionado})")
   graf_col1, graf_col2 = st.columns(2)
 
@@ -289,7 +293,7 @@ with tab1:
   df_comparativo = pd.DataFrame(dados_grafico)
 
   with graf_col1:
-    st.write("*Metas vs. Gastos Reais*")
+    st.write("*Metas vs. Gastos Reais (Gráfico de Barras)*")
     if not df_comparativo.empty:
       fig_bar = px.bar(
           df_comparativo,
@@ -305,15 +309,18 @@ with tab1:
       )
       fig_bar.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20))
       st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+      st.info("Sem dados suficientes para o gráfico.")
 
   with graf_col2:
-    st.write("*Distribuição dos Gastos por Categoria*")
+    st.write("*Distribuição dos Gastos por Categoria (Gráfico de Pizza)*")
     dados_pizza = [
         {"Categoria": cat, "Valor (R$)": val}
         for cat, val in gastos_brutos.items()
         if val > 0
     ]
     df_pizza = pd.DataFrame(dados_pizza)
+
     if not df_pizza.empty:
       fig_pie = px.pie(
           df_pizza,
@@ -324,17 +331,100 @@ with tab1:
       )
       fig_pie.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20))
       st.plotly_chart(fig_pie, use_container_width=True)
+    else:
+      st.info(
+          "Nenhum gasto registrado neste mês para gerar o gráfico de pizza."
+      )
+
+  st.markdown("---")
+  st.subheader("📈 Resumo Dinâmico da Carteira")
+  if not st.session_state.portfolio_investimentos.empty:
+    df_temp = st.session_state.portfolio_investimentos.copy()
+    df_temp["Valor Total"] = (
+        df_temp["Quantidade"] * df_temp["Preço Médio Compra"]
+    )
+    total_resumo = df_temp["Valor Total"].sum()
+
+    col_i1, col_i2, col_i3 = st.columns(3)
+    col_i1.metric("Patrimônio Investido", f"R$ {total_resumo:,.2f}")
+    col_i2.metric("Ativos Cadastrados", f"{len(df_temp)}")
+    col_i3.success("Painel conectado aos seus ativos.")
+  else:
+    st.info(
+        "Nenhum investimento cadastrado. Vá até a aba **Investimentos** para"
+        " adicionar seus ativos."
+    )
+
+  st.markdown("---")
+  st.subheader(
+      "🧠 Inteligência de Gestão Financeira & Análise de Gastos"
+  )
+  dicas_ia = []
+  if saldo_mes < 0:
+    dicas_ia.append(
+        (
+            "🔴 Alerta Vermelho",
+            (
+                "Suas saídas ultrapassaram suas entradas em R$"
+                f" {abs(saldo_mes):,.2f} em {mes_selecionado}."
+            ),
+        )
+    )
+  elif saldo_mes < (st.session_state.renda_mensal * 0.15):
+    dicas_ia.append(
+        (
+            "⚠️ Alerta de Margem Baixa",
+            (
+                "Seu saldo livre está apertado em relação à sua renda total."
+            ),
+        )
+    )
+  else:
+    dicas_ia.append(
+        (
+            "🟢 Comportamento Saudável",
+            (
+                f"Excelente controle em {mes_selecionado}! Seu fluxo de caixa"
+                " está positivo."
+            ),
+        )
+    )
+
+  for cat, meta in METAS.items():
+    gasto_cat = gastos_brutos.get(cat, 0.0)
+    if gasto_cat > meta:
+      excedente = gasto_cat - meta
+      dicas_ia.append(
+          (
+              "💡 Conselho de Ajuste",
+              (
+                  "Você gastou R$ "
+                  f" {excedente:,.2f} a mais do que o planejado na categoria"
+                  f" **{cat}**."
+              ),
+          )
+      )
+
+  for titulo, mensagem in dicas_ia:
+    if "🔴" in titulo or "⚠️" in titulo:
+      st.warning(f"**{titulo}:** {mensagem}")
+    elif "🟢" in titulo:
+      st.success(f"**{titulo}:** {mensagem}")
+    else:
+      st.info(f"**{titulo}:** {mensagem}")
 
 with tab2:
   st.subheader(f"💸 Lançamento de Gastos & Metas ({mes_selecionado})")
 
   with st.form(key="form_gasto", clear_on_submit=True):
     col_n1, col_n2 = st.columns(2)
+
     with col_n1:
       categoria_gasto = st.selectbox(
           "Selecione a Categoria:",
           ["Casa", "Transporte", "Lazer", "Viagem", "Investimentos", "Outros"],
       )
+
       sub_viagem = "Normal"
       if categoria_gasto == "Viagem":
         sub_viagem = st.selectbox(
@@ -344,11 +434,13 @@ with tab2:
                 "Com imprevisto (Gasto extra)",
             ],
         )
+
     with col_n2:
       valor_gasto = st.number_input(
           "Valor da Compra (R$):", min_value=0.0, value=150.00, step=10.0
       )
       detalhe_gasto = st.text_input("Descrição / Estabelecimento:", value="")
+
       submitted = st.form_submit_button(
           "Confirmar e Registrar Gasto 🚀", type="primary"
       )
@@ -375,6 +467,88 @@ with tab2:
         st.rerun()
 
   st.markdown("---")
+
+  df_g_acompanhamento = st.session_state.historico_gastos.copy()
+  gastos_brutos_comp = {}
+
+  if not df_g_acompanhamento.empty:
+    if "MesAno" not in df_g_acompanhamento.columns:
+      df_g_acompanhamento["MesAno"] = mes_selecionado
+    gastos_brutos_comp = (
+        df_g_acompanhamento[
+            df_g_acompanhamento["MesAno"] == mes_selecionado
+        ]
+        .groupby("Categoria")["Valor (R$)"]
+        .sum()
+        .to_dict()
+    )
+
+  if not st.session_state.historico_cartoes.empty:
+    for _, row_c in st.session_state.historico_cartoes.iterrows():
+      cat_c = row_c["Classe/Categoria"]
+      val_parcela = row_c["Valor Total (R$)"] / row_c["Parcelas"]
+      gastos_brutos_comp[cat_c] = (
+          gastos_brutos_comp.get(cat_c, 0.0) + val_parcela
+      )
+
+  excedente_outras_g = 0.0
+  for cat, meta in METAS.items():
+    if cat != "Viagem":
+      gasto_cat = gastos_brutos_comp.get(cat, 0.0)
+      if gasto_cat > meta:
+        excedente_outras_g += gasto_cat - meta
+
+  st.subheader(
+      f"📊 Acompanhamento de Metas vs. Gastos ({mes_selecionado}) [Inclui Faturas"
+      " de Cartão]"
+  )
+  for cat, meta in METAS.items():
+    gasto_atual = gastos_brutos_comp.get(cat, 0.0)
+
+    if cat == "Viagem":
+      gasto_total_viagem = gasto_atual + excedente_outras_g
+      progresso = min(gasto_total_viagem / meta, 1.0) if meta > 0 else 0
+
+      col_m1, col_m2 = st.columns([3, 1])
+      with col_m1:
+        if excedente_outras_g > 0:
+          st.text(
+              f"✈️ {cat} (Base: R$ {gasto_atual:.2f} + Imprevistos de outras"
+              f" áreas: R$ {excedente_outras_g:.2f}) / Meta R$ {meta:.2f}"
+          )
+        else:
+          st.text(
+              f"✈️ {cat}: Gasto Atual R$ {gasto_atual:.2f} / Meta R$"
+              f" {meta:.2f}"
+          )
+        st.progress(progresso)
+      with col_m2:
+        if gasto_total_viagem > meta:
+          st.error(f"Estourou R$ {gasto_total_viagem - meta:.2f}! ⚠️")
+        else:
+          sobra_viagem = meta - gasto_total_viagem
+          st.success(f"Sobra p/ Fundo: R$ {sobra_viagem:.2f} 🟢")
+    else:
+      progresso = min(gasto_atual / meta, 1.0) if meta > 0 else 0
+      excedente_destE = gasto_atual - meta if gasto_atual > meta else 0.0
+
+      col_m1, col_m2 = st.columns([3, 1])
+      with col_m1:
+        st.text(f"{cat}: Gasto R$ {gasto_atual:.2f} / Meta R$ {meta:.2f}")
+        st.progress(progresso)
+      with col_m2:
+        if excedente_destE > 0:
+          st.markdown(
+              "<span style='color: #ff4b4b; font-weight: bold;'>Excedente: +R$"
+              f" {excedente_destE:.2f} ⚠️</span>",
+              unsafe_allow_html=True,
+          )
+        else:
+          st.warning(f"Resta R$ {meta - gasto_atual:.2f} 🟢")
+
+  st.markdown("---")
+
+  # --- HISTÓRICO DE GASTOS AVULSOS (FILTRO VAZIO = TUDO APARECE) ---
   st.subheader(f"📜 Lançamentos Avulsos em {mes_selecionado}")
 
   categorias_disponiveis = [
@@ -385,8 +559,6 @@ with tab2:
       "Investimentos",
       "Outros",
   ]
-
-  # BARRA DE FILTRO VAZIA POR PADRÃO
   filtro_cat_gastos = st.multiselect(
       "🔍 Filtrar lançamentos avulsos por categoria (Deixe vazio para ver tudo):",
       categorias_disponiveis,
@@ -402,7 +574,7 @@ with tab2:
         st.session_state.historico_gastos["MesAno"] == mes_selecionado
     ]
 
-    # LÓGICA: Se estiver vazio ([]), mostra TUDO. Se tiver itens selecionados, filtra.
+    # Se estiver vazio ([]), mostra tudo. Se tiver itens selecionados, filtra.
     if len(filtro_cat_gastos) == 0:
       df_filtrado_idx = df_mes_atual.index
     else:
@@ -420,6 +592,7 @@ with tab2:
           c1, c2, c3, c4, c5, c6, c7 = st.columns(
               [1.1, 2.3, 1.6, 2.0, 1.1, 1.2, 0.6]
           )
+
           with c1:
             st.markdown(f"📅 **{str(row['Data'])}**")
           with c2:
@@ -491,7 +664,9 @@ with tab3:
     col_cad1, col_cad2, col_cad3 = st.columns([2, 2, 1])
     with col_cad1:
       novo_nome_cartao = st.text_input(
-          "Nome do Cartão:", value="", key="input_nome_cartao"
+          "Nome do Cartão (ex: Nubank, Itaú):",
+          value="",
+          key="input_nome_cartao",
       )
     with col_cad2:
       novo_limite_cartao = st.number_input(
@@ -513,10 +688,173 @@ with tab3:
           st.success(f"Cartão {novo_nome_cartao} adicionado com sucesso!")
           st.rerun()
 
+  limite_total_global = (
+      sum(st.session_state.lista_cartoes_cadastrados.values())
+      if st.session_state.lista_cartoes_cadastrados
+      else 0.0
+  )
+
+  comprometido_por_cartao = {
+      cartao: 0.0 for cartao in st.session_state.lista_cartoes_cadastrados.keys()
+  }
+  total_fatura_mensal_global = 0.0
+  total_comprometido_global = 0.0
+
+  if not st.session_state.historico_cartoes.empty:
+    for _, row_c in st.session_state.historico_cartoes.iterrows():
+      c_nome = str(row_c["Cartão"])
+      v_tot = float(row_c["Valor Total (R$)"])
+      parcelas_val = int(row_c["Parcelas"]) if row_c["Parcelas"] > 0 else 1
+      v_parc = v_tot / parcelas_val
+
+      total_fatura_mensal_global += v_parc
+      total_comprometido_global += v_tot
+      if c_nome in comprometido_por_cartao:
+        comprometido_por_cartao[c_nome] += v_tot
+
+  limite_disponivel_global = limite_total_global - total_comprometido_global
+
+  col_l1, col_l2, col_l3 = st.columns(3)
+  col_l1.metric(
+      "Limite Total Consolidado",
+      f"R$ {limite_total_global:,.2f}",
+      f"{len(st.session_state.lista_cartoes_cadastrados)} cartões ativos",
+  )
+  col_l2.metric(
+      "Fatura Atual Consolidada",
+      f"R$ {total_fatura_mensal_global:,.2f}",
+      "Soma das parcelas mensais",
+  )
+  col_l3.metric(
+      "Limite Disponível Geral",
+      f"R$ {limite_disponivel_global:,.2f}",
+      (
+          "Livre para novas compras 🟢"
+          if limite_disponivel_global >= 0
+          else "Estourado 🔴"
+      ),
+  )
+
+  porcentagem_uso_global = (
+      min(total_comprometido_global / limite_total_global, 1.0)
+      if limite_total_global > 0
+      else 0
+  )
+  st.progress(
+      porcentagem_uso_global,
+      text=f"Uso do Limite Global: {porcentagem_uso_global*100:.1f}%",
+  )
+
+  st.markdown("#### 🔍 Situação Individual por Cartão:")
+
+  if len(st.session_state.lista_cartoes_cadastrados) > 0:
+    for nome_c, lim_c in st.session_state.lista_cartoes_cadastrados.items():
+      comp_c = comprometido_por_cartao.get(nome_c, 0.0)
+      disp_c = lim_c - comp_c
+      porcentagem_c = min(comp_c / lim_c, 1.0) if lim_c > 0 else 0
+
+      col_view1, col_view2 = st.columns([5, 1])
+      with col_view1:
+        st.markdown(f"*💳 {nome_c}*")
+        st.text(
+            f"Limite: R$ {lim_c:,.2f} | Comprometido: R$ {comp_c:,.2f}"
+        )
+        st.progress(
+            porcentagem_c, text=f"Uso: {porcentagem_c*100:.1f}%"
+        )
+        if disp_c >= 0:
+          st.success(f"Disponível: R$ {disp_c:,.2f} 🟢")
+        else:
+          st.error(f"Estourado: R$ {abs(disp_c):,.2f} 🔴")
+      with col_view2:
+        st.text("")
+        if st.button("🗑️ Excluir", key=f"del_cartao_cadastrado_{nome_c}"):
+          del st.session_state.lista_cartoes_cadastrados[nome_c]
+          if not st.session_state.historico_cartoes.empty:
+            st.session_state.historico_cartoes = (
+                st.session_state.historico_cartoes[
+                    st.session_state.historico_cartoes["Cartão"] != nome_c
+                ]
+                .reset_index(drop=True)
+            )
+            salvar_cartoes()
+          salvar_lista_cartoes()
+          st.rerun()
+      st.markdown("---")
+  else:
+    st.info(
+        "Nenhum cartão cadastrado. Cadastre acima para visualizar os limites"
+        " individuais."
+    )
+
+  st.subheader("➕ Adicionar Nova Compra Parcelada no Cartão")
+  if len(st.session_state.lista_cartoes_cadastrados) > 0:
+    with st.form(key="form_cartao", clear_on_submit=True):
+      col_c1, col_c2 = st.columns(2)
+
+      with col_c1:
+        cartao_selecionado = st.selectbox(
+            "Selecione o Cartão:",
+            list(st.session_state.lista_cartoes_cadastrados.keys()),
+        )
+        desc_cartao = st.text_input(
+            "Descrição / Estabelecimento:", value=""
+        )
+
+      with col_c2:
+        valor_total_cartao = st.number_input(
+            "Valor Total da Compra (R$):",
+            min_value=0.0,
+            value=500.00,
+            step=50.0,
+        )
+        num_parcelas = st.number_input(
+            "Número de Parcelas:", min_value=1, max_value=24, value=5, step=1
+        )
+        classe_cartao = st.selectbox(
+            "Classe / Categoria do Gasto:",
+            [
+                "Casa",
+                "Transporte",
+                "Lazer",
+                "Viagem",
+                "Investimentos",
+                "Outros",
+            ],
+            key="cat_cartao_input",
+        )
+
+      btn_add_cartao = st.form_submit_button(
+          "Cadastrar Compra Parcelada 💳", type="primary"
+      )
+      if btn_add_cartao:
+        novo_cartao = {
+            "Cartão": cartao_selecionado,
+            "Descrição": (
+                desc_cartao if desc_cartao.strip() else "Compra Parcelada"
+            ),
+            "Valor Total (R$)": valor_total_cartao,
+            "Parcelas": int(num_parcelas),
+            "Classe/Categoria": classe_cartao,
+        }
+        st.session_state.historico_cartoes = pd.concat(
+            [st.session_state.historico_cartoes, pd.DataFrame([novo_cartao])],
+            ignore_index=True,
+        )
+        salvar_cartoes()
+        st.success("Compra parcelada cadastrada com sucesso!")
+        st.rerun()
+  else:
+    st.warning(
+        "Cadastre pelo menos um cartão acima antes de registrar compras"
+        " parceladas."
+    )
+
   st.markdown("---")
+
+  # --- HISTÓRICO DE CARTÕES (FILTRO VAZIO = TUDO APARECE) ---
   st.subheader("📜 Histórico de Parcelamentos Dividido por Cartão")
 
-  # BARRA DE FILTRO VAZIA POR PADRÃO
   filtro_cat_cartoes = st.multiselect(
       "🔍 Filtrar parcelamentos de cartões por categoria (Deixe vazio para ver tudo):",
       categorias_disponiveis,
@@ -543,7 +881,7 @@ with tab3:
             st.session_state.historico_cartoes["Cartão"] == nome_cartao
         ]
 
-        # LÓGICA: Se vazio ([]), mostra tudo do cartão. Se tiver itens, filtra.
+        # Se vazio ([]), mostra tudo do cartão. Se tiver itens, filtra.
         if len(filtro_cat_cartoes) == 0:
           df_cartao_atual = df_c_base
         else:
@@ -553,6 +891,26 @@ with tab3:
 
         if not df_cartao_atual.empty:
           for idx_c, row_c in df_cartao_atual.iterrows():
+            idx_global = st.session_state.historico_cartoes[
+                (st.session_state.historico_cartoes["Cartão"] == row_c["Cartão"])
+                & (
+                    st.session_state.historico_cartoes["Descrição"]
+                    == row_c["Descrição"]
+                )
+                & (
+                    st.session_state.historico_cartoes["Valor Total (R$)"]
+                    == row_c["Valor Total (R$)"]
+                )
+                & (
+                    st.session_state.historico_cartoes["Parcelas"]
+                    == row_c["Parcelas"]
+                )
+                & (
+                    st.session_state.historico_cartoes["Classe/Categoria"]
+                    == row_c["Classe/Categoria"]
+                )
+            ].index[0]
+
             v_tot_r = float(row_c["Valor Total (R$)"])
             v_parc_val = (
                 int(row_c["Parcelas"]) if row_c["Parcelas"] > 0 else 1
@@ -564,6 +922,7 @@ with tab3:
               cc1, cc2, cc3, cc4, cc5, cc6 = st.columns(
                   [2.5, 1.8, 1.2, 1.4, 1.8, 0.8]
               )
+
               with cc1:
                 st.markdown(f"🛍️ **{str(row_c['Descrição'])}**")
               with cc2:
@@ -577,11 +936,11 @@ with tab3:
               with cc6:
                 if st.button(
                     "🗑️",
-                    key=f"del_cartao_esp_{idx_c}",
-                    help="Apagar parcelamento",
+                    key=f"del_cartao_especifico_{idx_global}",
+                    help="Apagar este parcelamento",
                 ):
                   st.session_state.historico_cartoes = (
-                      st.session_state.historico_cartoes.drop(idx_c)
+                      st.session_state.historico_cartoes.drop(idx_global)
                       .reset_index(drop=True)
                   )
                   salvar_cartoes()
@@ -593,44 +952,63 @@ with tab3:
               f" no cartão **{nome_cartao}**."
           )
   else:
-    st.info("Nenhum parcelamento registrado ou cartões não cadastrados.")
+    st.info("Nenhum parcelamento de cartão registrado ou cartões não cadastrados.")
 
 with tab4:
   st.subheader("📈 Gestão da Carteira de Investimentos")
+  st.write(
+      "Adicione seus ativos (ex: PETR4.SA, VALE3.SA, IVVB11.SA) para acompanhar"
+      " cotações reais da bolsa:"
+  )
+
   with st.form(key="form_ativo", clear_on_submit=True):
     col_inv_a, col_inv_b, col_inv_c, col_inv_d = st.columns(
         [2, 1.5, 1.5, 1]
     )
     with col_inv_a:
-      ticker_input = st.text_input("Ticker (ex: PETR4.SA):", value="")
+      ticker_input = st.text_input(
+          "Ticker do Ativo (ex: PETR4.SA):",
+          value="",
+          key="ticker_input_field",
+      )
     with col_inv_b:
-      qtd_input = st.number_input("Quantidade:", min_value=1, value=10, step=1)
+      qtd_input = st.number_input(
+          "Quantidade:", min_value=1, value=10, step=1, key="qtd_input_field"
+      )
     with col_inv_c:
       preco_medio_input = st.number_input(
-          "Preço Médio (R$):", min_value=0.0, value=30.00, step=1.0
+          "Preço Médio de Compra (R$):",
+          min_value=0.0,
+          value=30.00,
+          step=1.0,
+          key="preco_input_field",
       )
     with col_inv_d:
       st.text("")
       st.text("")
       btn_add_ativo = st.form_submit_button("Adicionar Ativo 📈")
 
-    if btn_add_ativo and ticker_input.strip():
-      novo_ativo_df = pd.DataFrame([{
-          "Ativo": ticker_input.strip().upper(),
-          "Quantidade": int(qtd_input),
-          "Preço Médio Compra": float(preco_medio_input),
-      }])
-      st.session_state.portfolio_investimentos = pd.concat(
-          [st.session_state.portfolio_investimentos, novo_ativo_df],
-          ignore_index=True,
-      )
-      salvar_investimentos()
-      st.success("Ativo adicionado!")
-      st.rerun()
+    if btn_add_ativo:
+      if ticker_input.strip():
+        novo_ativo_df = pd.DataFrame([{
+            "Ativo": ticker_input.strip().upper(),
+            "Quantidade": int(qtd_input),
+            "Preço Médio Compra": float(preco_medio_input),
+        }])
+        st.session_state.portfolio_investimentos = pd.concat(
+            [st.session_state.portfolio_investimentos, novo_ativo_df],
+            ignore_index=True,
+        )
+        salvar_investimentos()
+        st.success("Ativo adicionado com sucesso!")
+        st.rerun()
+
+  st.markdown("---")
 
   if not st.session_state.portfolio_investimentos.empty:
     df_portfolio = st.session_state.portfolio_investimentos.copy()
     precos_atuais = []
+
     for ticker in df_portfolio["Ativo"]:
       try:
         stock = yf.Ticker(str(ticker))
@@ -676,4 +1054,26 @@ with tab4:
             "Rentabilidade (%)": "{:.2f}%",
         }),
         use_container_width=True,
+    )
+
+    patrimonio_atual_carteira = df_portfolio["Valor Total"].sum()
+    lucro_total_carteira = df_portfolio["Lucro / Prejuízo (R$)"].sum()
+
+    col_inv1, col_inv2 = st.columns(2)
+    col_inv1.metric(
+        "Patrimônio Atual na Bolsa",
+        f"R$ {patrimonio_atual_carteira:,.2f}",
+        f"R$ {lucro_total_carteira:+,.2f} total",
+    )
+
+    if st.button("🗑️ Limpar Todos os Investimentos"):
+      st.session_state.portfolio_investimentos = pd.DataFrame(
+          columns=["Ativo", "Quantidade", "Preço Médio Compra"]
+      )
+      salvar_investimentos()
+      st.rerun()
+  else:
+    st.info(
+        "Nenhum ativo cadastrado na carteira. Utilize o formulário acima para"
+        " inserir suas ações ou ETFs."
     )
