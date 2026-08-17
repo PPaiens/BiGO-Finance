@@ -120,15 +120,6 @@ meses_disponiveis = [
     "Janeiro/2026",
 ]
 
-GANHO_TOTAL = st.session_state.renda_mensal
-METAS = {
-    "Casa": GANHO_TOTAL * 0.35,
-    "Transporte": GANHO_TOTAL * 0.18,
-    "Investimentos": GANHO_TOTAL * 0.12,
-    "Viagem": GANHO_TOTAL * 0.10,
-    "Lazer": GANHO_TOTAL * 0.25,
-}
-
 # Estilo visual customizado
 st.markdown(
     """
@@ -163,29 +154,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Menu Lateral
+# Menu Lateral Limpo (Apenas Informações e Logo)
 with st.sidebar:
   st.image("https://img.icons8.com/color/96/stack-of-coins.png", width=60)
   st.title("Smart Finance")
-  st.markdown("---")
-
-  mes_selecionado = st.selectbox(
-      "Mês de Referência", meses_disponiveis, index=0
-  )
-  st.markdown("---")
-
-  st.subheader("💵 Configurar Renda")
-  nova_renda_sidebar = st.number_input(
-      "Entrada Mensal Total (R$):",
-      min_value=0.0,
-      value=st.session_state.renda_mensal,
-      step=100.0,
-  )
-  if nova_renda_sidebar != st.session_state.renda_mensal:
-    st.session_state.renda_mensal = nova_renda_sidebar
-    salvar_renda()
-    st.rerun()
-
   st.markdown("---")
   st.info(
       "💡 *Dados persistentes:* As informações são salvas automaticamente no"
@@ -198,9 +170,25 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 with tab1:
-  st.subheader(f"📊 Resumo Financeiro Completo - {mes_selecionado}")
+  # CABEÇALHO COM O SELETOR DE MÊS NO CANTO SUPERIOR
+  col_top_h1, col_top_h2 = st.columns([2, 2])
+  with col_top_h1:
+    st.subheader("📊 Resumo Financeiro Completo")
+  with col_top_h2:
+    mes_selecionado = st.selectbox(
+        "Mês de Referência:", meses_disponiveis, index=0, key="select_mes_topo"
+    )
 
-  with st.expander("⚙️ Editar Renda / Ganhos do Mês", expanded=False):
+  GANHO_TOTAL = st.session_state.renda_mensal
+  METAS = {
+      "Casa": GANHO_TOTAL * 0.35,
+      "Transporte": GANHO_TOTAL * 0.18,
+      "Investimentos": GANHO_TOTAL * 0.12,
+      "Viagem": GANHO_TOTAL * 0.10,
+      "Lazer": GANHO_TOTAL * 0.25,
+  }
+
+  with st.expander("⚙️ Configurar / Editar Renda (Ganhos do Mês)", expanded=False):
     col_ed_r1, col_ed_r2 = st.columns([2, 1])
     with col_ed_r1:
       renda_input_main = st.number_input(
@@ -437,6 +425,16 @@ with tab1:
       st.info(f"**{titulo}:** {mensagem}")
 
 with tab2:
+  # Metas dinâmicas baseadas na renda atualizada
+  GANHO_TOTAL = st.session_state.renda_mensal
+  METAS = {
+      "Casa": GANHO_TOTAL * 0.35,
+      "Transporte": GANHO_TOTAL * 0.18,
+      "Investimentos": GANHO_TOTAL * 0.12,
+      "Viagem": GANHO_TOTAL * 0.10,
+      "Lazer": GANHO_TOTAL * 0.25,
+  }
+
   st.subheader(f"💸 Lançamento de Gastos & Metas ({mes_selecionado})")
 
   with st.form(key="form_gasto", clear_on_submit=True):
