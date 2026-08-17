@@ -288,7 +288,7 @@ with tab1:
   # Configuração para desativar zoom, barra de ferramentas e travamento de scroll nos gráficos
   config_grafico_fixo = {'displayModeBar': False, 'scrollZoom': False}
 
-  # Gráfico 1: Barras Otimizado para Mobile
+ # Gráfico 1: Barras Otimizado para Mobile
   st.write("*Metas vs. Gastos Reais Detalhados (Gráfico Horizontal)*")
   if not df_comparativo.empty:
     fig_bar = px.bar(
@@ -308,15 +308,20 @@ with tab1:
     fig_bar.update_traces(
         textposition="auto", textfont_size=11, cliponaxis=False
     )
+    
+    # ATUALIZAÇÃO: Travando o zoom nos eixos e mantendo o layout limpo
     fig_bar.update_layout(
         height=420,
         margin=dict(l=10, r=10, t=10, b=10),
-        xaxis_title=None,
-        yaxis_title=None,
+        xaxis=dict(fixedrange=True),  # Bloqueia zoom no eixo X
+        yaxis=dict(fixedrange=True),  # Bloqueia zoom no eixo Y
         legend=dict(
             orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
         ),
     )
+    
+    # Configuração para desativar barra de ferramentas e scroll
+    config_grafico_fixo = {'displayModeBar': False, 'scrollZoom': False}
     st.plotly_chart(fig_bar, use_container_width=True, config=config_grafico_fixo)
   else:
     st.info("Sem dados suficientes para o gráfico.")
