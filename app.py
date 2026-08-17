@@ -278,7 +278,6 @@ with tab1:
   st.markdown("---")
 
   st.subheader(f"📊 Raio-X Visual do Orçamento ({mes_selecionado})")
-  graf_col1, graf_col2 = st.columns(2)
 
   dados_grafico = []
   for cat, meta in METAS.items():
@@ -298,63 +297,71 @@ with tab1:
 
   df_comparativo = pd.DataFrame(dados_grafico)
 
-  with graf_col1:
-    st.write("*Metas vs. Gastos Reais Detalhados (Gráfico Horizontal)*")
-    if not df_comparativo.empty:
-      fig_bar = px.bar(
-          df_comparativo,
-          y="Categoria",
-          x="Valor (R$)",
-          color="Tipo",
-          barmode="group",
-          orientation="h",
-          text="TextoValor",
-          color_discrete_map={
-              "Planejado (Meta)": "#2b5c8f",
-              "Gasto Real": "#ff4b4b",
-          },
-          template="plotly_dark",
-      )
-      fig_bar.update_traces(textposition="outside")
-      fig_bar.update_layout(
-          height=380,
-          margin=dict(l=10, r=40, t=10, b=10),
-          xaxis_title=None,
-          yaxis_title=None,
-          legend_title=None,
-      )
-      st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-      st.info("Sem dados suficientes para o gráfico.")
+  # Gráfico 1: Barras Otimizado para Mobile
+  st.write("*Metas vs. Gastos Reais Detalhados (Gráfico Horizontal)*")
+  if not df_comparativo.empty:
+    fig_bar = px.bar(
+        df_comparativo,
+        y="Categoria",
+        x="Valor (R$)",
+        color="Tipo",
+        barmode="group",
+        orientation="h",
+        text="TextoValor",
+        color_discrete_map={
+            "Planejado (Meta)": "#2b5c8f",
+            "Gasto Real": "#ff4b4b",
+        },
+        template="plotly_dark",
+    )
+    fig_bar.update_traces(
+        textposition="auto", textfont_size=11, cliponaxis=False
+    )
+    fig_bar.update_layout(
+        height=420,
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_title=None,
+        yaxis_title=None,
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+        ),
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
+  else:
+    st.info("Sem dados suficientes para o gráfico.")
 
-  with graf_col2:
-    st.write("*Distribuição dos Gastos por Categoria (Gráfico de Pizza)*")
-    dados_pizza = [
-        {"Categoria": cat, "Valor (R$)": val}
-        for cat, val in gastos_brutos.items()
-        if val > 0
-    ]
-    df_pizza = pd.DataFrame(dados_pizza)
+  st.markdown("---")
 
-    if not df_pizza.empty:
-      fig_pie = px.pie(
-          df_pizza,
-          names="Categoria",
-          values="Valor (R$)",
-          hole=0.4,
-          template="plotly_dark",
-      )
-      fig_pie.update_traces(textinfo="label+value+percent")
-      fig_pie.update_layout(
-          height=380,
-          margin=dict(l=10, r=10, t=10, b=10),
-          legend_title=None,
-      )
-      st.plotly_chart(fig_pie, use_container_width=True)
-    else:
-      st.info(
-          "Nenhum gasto registrado neste mês para gerar o gráfico de pizza."
-      )
+  # Gráfico 2: Pizza Otimizado para Mobile
+  st.write("*Distribuição dos Gastos por Categoria (Gráfico de Pizza)*")
+  dados_pizza = [
+      {"Categoria": cat, "Valor (R$)": val}
+      for cat, val in gastos_brutos.items()
+      if val > 0
+  ]
+  df_pizza = pd.DataFrame(dados_pizza)
+
+  if not df_pizza.empty:
+    fig_pie = px.pie(
+        df_pizza,
+        names="Categoria",
+        values="Valor (R$)",
+        hole=0.4,
+        template="plotly_dark",
+    )
+    fig_pie.update_traces(textinfo="label+value+percent", textfont_size=11)
+    fig_pie.update_layout(
+        height=380,
+        margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5
+        ),
+    )
+    st.plotly_chart(fig_pie, use_container_width=True)
+  else:
+    st.info(
+        "Nenhum gasto registrado neste mês para gerar o gráfico de pizza."
+    )
 
   st.markdown("---")
   st.subheader("📈 Resumo Dinâmico da Carteira")
@@ -376,9 +383,7 @@ with tab1:
     )
 
   st.markdown("---")
-  st.subheader(
-      "🧠 Inteligência de Gestão Financeira & Análise de Gastos"
-  )
+  st.subheader("🧠 Inteligência de Gestão Financeira & Análise de Gastos")
   dicas_ia = []
   if saldo_mes < 0:
     dicas_ia.append(
@@ -394,9 +399,7 @@ with tab1:
     dicas_ia.append(
         (
             "⚠️ Alerta de Margem Baixa",
-            (
-                "Seu saldo livre está apertado em relação à sua renda total."
-            ),
+            ("Seu saldo livre está apertado em relação à sua renda total."),
         )
     )
   else:
@@ -568,7 +571,6 @@ with tab2:
 
   st.markdown("---")
 
-  # --- HISTÓRICO DE GASTOS AVULSOS (FILTRO VAZIO = TUDO APARECE) ---
   st.subheader(f"📜 Lançamentos Avulsos em {mes_selecionado}")
 
   categorias_disponiveis = [
@@ -594,7 +596,6 @@ with tab2:
         st.session_state.historico_gastos["MesAno"] == mes_selecionado
     ]
 
-    # Se estiver vazio ([]), mostra tudo. Se tiver itens selecionados, filtra.
     if len(filtro_cat_gastos) == 0:
       df_filtrado_idx = df_mes_atual.index
     else:
@@ -872,7 +873,6 @@ with tab3:
 
   st.markdown("---")
 
-  # --- HISTÓRICO DE CARTÕES (FILTRO VAZIO = TUDO APARECE) ---
   st.subheader("📜 Histórico de Parcelamentos Dividido por Cartão")
 
   filtro_cat_cartoes = st.multiselect(
@@ -901,7 +901,6 @@ with tab3:
             st.session_state.historico_cartoes["Cartão"] == nome_cartao
         ]
 
-        # Se vazio ([]), mostra tudo do cartão. Se tiver itens, filtra.
         if len(filtro_cat_cartoes) == 0:
           df_cartao_atual = df_c_base
         else:
