@@ -285,6 +285,9 @@ with tab1:
 
   df_comparativo = pd.DataFrame(dados_grafico)
 
+  # Configuração para desativar zoom, barra de ferramentas e travamento de scroll nos gráficos
+  config_grafico_fixo = {'displayModeBar': False, 'scrollZoom': False}
+
   # Gráfico 1: Barras Otimizado para Mobile
   st.write("*Metas vs. Gastos Reais Detalhados (Gráfico Horizontal)*")
   if not df_comparativo.empty:
@@ -314,7 +317,7 @@ with tab1:
             orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
         ),
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, use_container_width=True, config=config_grafico_fixo)
   else:
     st.info("Sem dados suficientes para o gráfico.")
 
@@ -345,7 +348,7 @@ with tab1:
             orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5
         ),
     )
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, use_container_width=True, config=config_grafico_fixo)
   else:
     st.info(
         "Nenhum gasto registrado neste mês para gerar o gráfico de pizza."
@@ -425,7 +428,6 @@ with tab1:
       st.info(f"**{titulo}:** {mensagem}")
 
 with tab2:
-  # Metas dinâmicas baseadas na renda atualizada
   GANHO_TOTAL = st.session_state.renda_mensal
   METAS = {
       "Casa": GANHO_TOTAL * 0.35,
