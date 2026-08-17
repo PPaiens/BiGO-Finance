@@ -283,17 +283,23 @@ with tab1:
   dados_grafico = []
   for cat, meta in METAS.items():
     gasto_real = gastos_brutos.get(cat, 0.0)
-    dados_grafico.append(
-        {"Categoria": cat, "Tipo": "Planejado (Meta)", "Valor (R$)": meta}
-    )
-    dados_grafico.append(
-        {"Categoria": cat, "Tipo": "Gasto Real", "Valor (R$)": gasto_real}
-    )
+    dados_grafico.append({
+        "Categoria": cat,
+        "Tipo": "Planejado (Meta)",
+        "Valor (R$)": meta,
+        "TextoValor": f"R$ {meta:,.2f}",
+    })
+    dados_grafico.append({
+        "Categoria": cat,
+        "Tipo": "Gasto Real",
+        "Valor (R$)": gasto_real,
+        "TextoValor": f"R$ {gasto_real:,.2f}",
+    })
 
   df_comparativo = pd.DataFrame(dados_grafico)
 
   with graf_col1:
-    st.write("*Metas vs. Gastos Reais (Gráfico Horizontal)*")
+    st.write("*Metas vs. Gastos Reais Detalhados (Gráfico Horizontal)*")
     if not df_comparativo.empty:
       fig_bar = px.bar(
           df_comparativo,
@@ -302,15 +308,17 @@ with tab1:
           color="Tipo",
           barmode="group",
           orientation="h",
+          text="TextoValor",
           color_discrete_map={
               "Planejado (Meta)": "#2b5c8f",
               "Gasto Real": "#ff4b4b",
           },
           template="plotly_dark",
       )
+      fig_bar.update_traces(textposition="outside")
       fig_bar.update_layout(
-          height=350,
-          margin=dict(l=10, r=10, t=10, b=10),
+          height=380,
+          margin=dict(l=10, r=40, t=10, b=10),
           xaxis_title=None,
           yaxis_title=None,
           legend_title=None,
@@ -336,8 +344,9 @@ with tab1:
           hole=0.4,
           template="plotly_dark",
       )
+      fig_pie.update_traces(textinfo="label+value+percent")
       fig_pie.update_layout(
-          height=350,
+          height=380,
           margin=dict(l=10, r=10, t=10, b=10),
           legend_title=None,
       )
