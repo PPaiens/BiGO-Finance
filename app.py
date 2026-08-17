@@ -293,21 +293,28 @@ with tab1:
   df_comparativo = pd.DataFrame(dados_grafico)
 
   with graf_col1:
-    st.write("*Metas vs. Gastos Reais (Gráfico de Barras)*")
+    st.write("*Metas vs. Gastos Reais (Gráfico Horizontal)*")
     if not df_comparativo.empty:
       fig_bar = px.bar(
           df_comparativo,
-          x="Categoria",
-          y="Valor (R$)",
+          y="Categoria",
+          x="Valor (R$)",
           color="Tipo",
           barmode="group",
+          orientation="h",
           color_discrete_map={
               "Planejado (Meta)": "#2b5c8f",
               "Gasto Real": "#ff4b4b",
           },
           template="plotly_dark",
       )
-      fig_bar.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20))
+      fig_bar.update_layout(
+          height=350,
+          margin=dict(l=10, r=10, t=10, b=10),
+          xaxis_title=None,
+          yaxis_title=None,
+          legend_title=None,
+      )
       st.plotly_chart(fig_bar, use_container_width=True)
     else:
       st.info("Sem dados suficientes para o gráfico.")
@@ -329,7 +336,11 @@ with tab1:
           hole=0.4,
           template="plotly_dark",
       )
-      fig_pie.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20))
+      fig_pie.update_layout(
+          height=350,
+          margin=dict(l=10, r=10, t=10, b=10),
+          legend_title=None,
+      )
       st.plotly_chart(fig_pie, use_container_width=True)
     else:
       st.info(
