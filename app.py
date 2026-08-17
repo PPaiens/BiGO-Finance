@@ -400,13 +400,26 @@ with tab2:
 
     st.markdown("---")
     
-    # --- HISTÓRICO DE GASTOS AVULSOS OTIMIZADO COM VISUAL EM CARDS ---
+    # --- HISTÓRICO DE GASTOS AVULSOS OTIMIZADO COM FILTRO POR CATEGORIA ---
     st.subheader(f"📜 Lançamentos Avulsos em {mes_selecionado}")
+    
+    categorias_disponiveis = ["Casa", "Transporte", "Lazer", "Viagem", "Investimentos", "Outros"]
+    filtro_cat_gastos = st.multiselect(
+        "🔍 Filtrar lançamentos avulsos por categoria:",
+        categorias_disponiveis,
+        default=categorias_disponiveis,
+        key="filtro_cat_gastos_avulsos"
+    )
+
     if not st.session_state.historico_gastos.empty:
         if "MesAno" not in st.session_state.historico_gastos.columns:
             st.session_state.historico_gastos["MesAno"] = mes_selecionado
             
-        df_filtrado_idx = st.session_state.historico_gastos[st.session_state.historico_gastos["MesAno"] == mes_selecionado].index
+        # Aplica tanto o filtro do mês quanto o filtro dinâmico de categorias selecionadas
+        df_filtrado_idx = st.session_state.historico_gastos[
+            (st.session_state.historico_gastos["MesAno"] == mes_selecionado) & 
+            (st.session_state.historico_gastos["Categoria"].isin(filtro_cat_gastos))
+        ].index
         
         if len(df_filtrado_idx) > 0:
             for idx in df_filtrado_idx:
@@ -449,7 +462,7 @@ with tab2:
                             st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.info(f"Nenhum gasto avulso registrado em {mes_selecionado}.")
+            st.info(f"Nenhum gasto avulso encontrado para os filtros selecionados em {mes_selecionado}.")
     else:
         st.info("Nenhum gasto registrado ainda.")
 
@@ -567,8 +580,16 @@ with tab3:
 
     st.markdown("---")
     
-    # --- HISTÓRICO DE CARTÕES DIVIDIDO POR CADA CARTÃO USADO ---
+    # --- HISTÓRICO DE CARTÕES COM FILTRO POR CATEGORIA ---
     st.subheader("📜 Histórico de Parcelamentos Dividido por Cartão")
+    
+    filtro_cat_cartoes = st.multiselect(
+        "🔍 Filtrar parcelamentos de cartões por categoria:",
+        categorias_disponiveis,
+        default=categorias_disponiveis,
+        key="filtro_cat_cartoes_multiselect"
+    )
+
     if not st.session_state.historico_cartoes.empty and len(st.session_state.lista_cartoes_cadastrados) > 0:
         # Cria abas secundárias dinâmicas baseadas nos cartões cadastrados
         nomes_cartoes_ativos = list(st.session_state.lista_cartoes_cadastrados.keys())
@@ -578,13 +599,23 @@ with tab3:
             with tabs_cartoes[i]:
                 st.markdown(f"**Histórico de compras e parcelas do cartão: {nome_cartao}**")
                 
-                # Filtra o histórico de cartões apenas para o cartão atual da aba
+                # Filtra o histórico de cartões pelo cartão atual E pelas categorias selecionadas no multiselect
                 df_cartao_atual = st.session_state.historico_cartoes[
-                    st.session_state.historico_cartoes["Cartão"] == nome_cartao
+                    (st.session_state.historico_cartoes["Cartão"] == nome_cartao) &
+                    (st.session_state.historico_cartoes["Classe/Categoria"].isin(filtro_cat_cartoes))
                 ]
                 
                 if not df_cartao_atual.empty:
                     for idx_c, row_c in df_cartao_atual.iterrows():
+                        # Descobre o índice original no dataframe geral para permitir a exclusão correta
+                        idx_global = st.session_state.historico_cartoes[
+                            (st.session_state.historico_cartoes["Cartão"] == row_c["Cartão"]) &
+                            (st.session_state.historico_cartoes["Descrição"] == row_c["Descrição"]) &
+                            (st.session_state.historico_cartoes["Valor Total (R$)"] == row_c["Valor Total (R$)"]) &
+                            (st.session_state.historico_cartoes["Parcelas"] == row_c["Parcelas"]) &
+                            (st.session_state.historico_cartoes["Classe/Categoria"] == row_c["Classe/Categoria"])
+                        ].index[0]
+
                         v_tot_r = float(row_c["Valor Total (R$)"])
                         v_parc_val = int(row_c["Parcelas"]) if row_c["Parcelas"] > 0 else 1
                         valor_parcela_calc = v_tot_r / v_parc_val
@@ -605,13 +636,13 @@ with tab3:
                             with cc5:
                                 st.markdown(f"🏷️ _{str(row_c['Classe/Categoria'])}_")
                             with cc6:
-                                if st.button("🗑️", key=f"del_cartao_especifico_{idx_c}", help="Apagar este parcelamento"):
-                                    st.session_state.historico_cartoes = st.session_state.historico_cartoes.drop(idx_c).reset_index(drop=True)
+                                if st.button("🗑️", key=f"del_cartao_especifico_{idx_global}", help="Apagar este parcelamento"):
+                                    st.session_state.historico_cartoes = st.session_state.historico_cartoes.drop(idx_global).reset_index(drop=True)
                                     salvar_cartoes()
                                     st.rerun()
                             st.markdown('</div>', unsafe_allow_html=True)
                 else:
-                    st.info(f"Nenhum parcelamento registrado para o cartão **{nome_cartao}**.")
+                    st.info(f"Nenhum parcelamento encontrado para os filtros selecionados no cartão **{nome_cartao}**.")
     else:
         st.info("Nenhum parcelamento de cartão registrado ou cartões não cadastrados.")
 
